@@ -1,0 +1,28 @@
+#!/bin/bash -x
+
+exec 2>&1
+
+source {{pkg.svc_config_path}}/p4d.conf
+echo "Running app with params $params"
+
+{{pkg.path}}/bin/p4d $params -xD i$HOSTNAME
+echo "Leader-e: $leader"
+if [[ "$leader" == "0" ]]; then
+    p4 -p $masterport server -i <<EOF
+ServerID: i$HOSTNAME
+Type: server
+Services: forwarding-replica
+EOF
+    p4 -p $masterport user -if <<EOF
+User: replica
+Type: service
+FullName: replica
+Email: replica@example.com
+EOF
+    p4 -p $masterport configure set "i$HOSTNAME#startup.1=pull -i 1"
+    p4 -p $masterport configure set "i$HOSTNAME#startup.2=pull -u -i 1"
+    p4 -p $masterport configure set "i$HOSTNAME#lbr.replication=readonly"
+    p4 -p $masterport configure set "i$HOSTNAME#db.replication=readonly"
+fi
+{{pkg.path}}/bin/p4d $params -xu
+exec {{pkg.path}}/bin/p4d $params
